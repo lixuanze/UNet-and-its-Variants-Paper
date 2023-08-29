@@ -263,7 +263,7 @@ class SegNet:
       print("Data Processing Completed")
     if self.utils.continue_training == True:
         # Custom objects, if any (you might need to define them depending on the custom loss, metrics, etc.)
-        custom_objects = {'MeanIoU': tf.keras.metrics.MeanIoU}
+        custom_objects = {'MaxPoolingWithArgmax2D': MaxPoolingWithArgmax2D, 'MaxUnpooling2D': MaxUnpooling2D}
         # Load the full model, including optimizer state
         segnet = load_model('models/segnet_best_model.h5', custom_objects=custom_objects)
         segnet.summary()
