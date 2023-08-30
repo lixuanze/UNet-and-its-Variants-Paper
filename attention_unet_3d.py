@@ -61,14 +61,14 @@ class Attention_UNet:
       '''
       This method returns the attention layer followed implementation of Oktay 2018.
       '''
-      shape_x = x.shape
-      shape_g = g.shape
+      shape_x = K.int_shape(x)
+      shape_g = K.int_shape(g)
       
       # Getting the gating signal to the same number of filters as the inter_shape
       phi_g = Conv3D(units, (1, 1, 1), padding='same', kernel_initializer='he_normal')(g)
 
       # Getting the x signal to the same shape as the gating signal
-      theta_x = Conv3D(units, (3, 3, 3), strides=(shape_x[1] // shape_g[1], shape_x[2] // shape_g[2], shape_x[3] // shape_g[3]), padding='same', kernel_initializer='he_normal')(x)
+      theta_x = Conv3D(units, (1, 1, 1), strides=(shape_x[1] // shape_g[1], shape_x[2] // shape_g[2], shape_x[3] // shape_g[3]), padding='same', kernel_initializer='he_normal')(x)
 
       # Element-wise addition of the gating and x signals
       add_xg = Add()([phi_g, theta_x])
@@ -77,7 +77,7 @@ class Attention_UNet:
       # 1x1x1 convolution
       psi = Conv3D(1, (1, 1, 1), strides=(shape_x[1] // shape_g[1], shape_x[2] // shape_g[2], shape_x[3] // shape_g[3]), padding='same', kernel_initializer='he_normal')(add_xg)
       psi = Activation('sigmoid')(psi)
-      shape_sigmoid = psi.shape
+      shape_sigmoid = K.int_shape(shape_sigmoid)
 
       # Upsampling psi back to the original dimensions of x signal
       upsample_sigmoid_xg = UpSampling3D(size=(shape_x[1] // shape_sigmoid[1], shape_x[2] // shape_sigmoid[2], shape_x[3] // shape_sigmoid[3]))(psi)
@@ -119,13 +119,13 @@ class Attention_UNet:
     # encoding blocks
     encoding_space_output_layer = self.encoding_layers_building_blocks(1024, down_sampling_output_layer_4, pooling_layer=False)
     # up sampling blocks
-    up_sampling_attention_layer_1 = self.attention_layers_building_blocks(1024, down_sampling_convolution_layer_4, encoding_space_output_layer)
+    up_sampling_attention_layer_1 = self.attention_layers_building_blocks(512, down_sampling_convolution_layer_4, encoding_space_output_layer)
     up_sampling_output_layer_1 = self.decoding_layers_building_blocks(512, encoding_space_output_layer, up_sampling_attention_layer_1)
-    up_sampling_attention_layer_2 = self.attention_layers_building_blocks(512, down_sampling_convolution_layer_3, up_sampling_output_layer_1)
+    up_sampling_attention_layer_2 = self.attention_layers_building_blocks(256, down_sampling_convolution_layer_3, up_sampling_output_layer_1)
     up_sampling_output_layer_2 = self.decoding_layers_building_blocks(256, up_sampling_output_layer_1, up_sampling_attention_layer_2)
-    up_sampling_attention_layer_3 = self.attention_layers_building_blocks(256, down_sampling_convolution_layer_2, up_sampling_output_layer_2)
+    up_sampling_attention_layer_3 = self.attention_layers_building_blocks(128, down_sampling_convolution_layer_2, up_sampling_output_layer_2)
     up_sampling_output_layer_3 = self.decoding_layers_building_blocks(128, up_sampling_output_layer_2, up_sampling_attention_layer_3)
-    up_sampling_attention_layer_4 = self.attention_layers_building_blocks(128, down_sampling_convolution_layer_1, up_sampling_output_layer_3)
+    up_sampling_attention_layer_4 = self.attention_layers_building_blocks(64, down_sampling_convolution_layer_1, up_sampling_output_layer_3)
     up_sampling_output_layer_4 = self.decoding_layers_building_blocks(64, up_sampling_output_layer_3, up_sampling_attention_layer_4)
     # classification block
     up_sampling_output_layer_4_shape = up_sampling_output_layer_4.shape
