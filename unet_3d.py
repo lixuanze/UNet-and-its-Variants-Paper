@@ -3,7 +3,7 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 from skimage.transform import resize
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Input, Conv3D, Reshape, concatenate, Conv2D, MaxPooling3D, UpSampling3D, BatchNormalization, Add, Activation, Dropout
+from tensorflow.keras.layers import Input, Conv3D, Reshape, concatenate, Conv2D, MaxPooling3D, Conv3DTranspose, BatchNormalization, Add, Activation, Dropout
 from tensorflow.keras.callbacks import ModelCheckpoint
 from tensorflow.keras import backend as K
 from tensorflow.keras.models import load_model
@@ -40,9 +40,9 @@ class UNet:
       This method returns the decoding layers building blocks (i.e, upsampling layers)
       '''
       if concat_layer.shape[3] == 1:
-          upsampling_layer = UpSampling3D(size=(2, 2, 1))(in_layer)
+          upsampling_layer = Conv3DTranspose(units, (3, 3, 3), strides=(2, 2, 1), padding='same', kernel_initializer='he_normal')(in_layer)
       else:
-          upsampling_layer = UpSampling3D(size=(2, 2, 2))(in_layer)
+          upsampling_layer = Conv3DTranspose(units, (3, 3, 3), strides=(2, 2, 2), padding='same', kernel_initializer='he_normal')(in_layer)
       upsampling_layer = concatenate([upsampling_layer, concat_layer], axis=4)
       convolution_layer = Conv3D(units, (3, 3, 3), padding='same', kernel_initializer='he_normal')(upsampling_layer)
       convolution_layer = BatchNormalization()(convolution_layer)
