@@ -408,20 +408,20 @@ class Inception_UNet:
     input_layer = Input((self.utils.resized_x_y, self.utils.resized_x_y, self.utils.num_components_to_keep, 1))
     input_layer = SwitchNormalization(axis=-1) (input_layer)
     # down sampling blocks
-    down_sampling_output_layer_1, down_sampling_convolution_layer_1 = self.encoding_layers_building_blocks(16, input_layer)
-    down_sampling_output_layer_2, down_sampling_convolution_layer_2 = self.encoding_layers_building_blocks(32, down_sampling_output_layer_1)
-    down_sampling_output_layer_3, down_sampling_convolution_layer_3 = self.encoding_layers_building_blocks(64, down_sampling_output_layer_2)
-    down_sampling_output_layer_4, down_sampling_convolution_layer_4 = self.encoding_layers_building_blocks(128, down_sampling_output_layer_3)
+    down_sampling_output_layer_1, down_sampling_convolution_layer_1 = self.encoding_layers_building_blocks(64, input_layer)
+    down_sampling_output_layer_2, down_sampling_convolution_layer_2 = self.encoding_layers_building_blocks(128, down_sampling_output_layer_1)
+    down_sampling_output_layer_3, down_sampling_convolution_layer_3 = self.encoding_layers_building_blocks(256, down_sampling_output_layer_2)
+    down_sampling_output_layer_4, down_sampling_convolution_layer_4 = self.encoding_layers_building_blocks(512, down_sampling_output_layer_3)
     # encoding blocks
-    encoding_space_output_layer = self.encoding_layers_building_blocks(256, down_sampling_output_layer_4, pooling_layer=False)
-    input_layer_down_sampled = self.HybridPooling3D_DownSampling(256, pool_size=(16, 16, 16), padding='same')(input_layer)
+    encoding_space_output_layer = self.encoding_layers_building_blocks(1024, down_sampling_output_layer_4, pooling_layer=False)
+    input_layer_down_sampled = self.HybridPooling3D_DownSampling(1024, pool_size=(16, 16, 16), padding='same')(input_layer)
     # up sampling blocks
     concat_layer = concatenate([encoding_space_output_layer, input_layer_down_sampled], axis=4)
-    convolution_layer = Conv3D(256, (1, 1, 1), padding='same', kernel_initializer='he_normal')(concat_layer)
-    up_sampling_output_layer_1 = self.decoding_layers_building_blocks(128, convolution_layer, down_sampling_convolution_layer_4)
-    up_sampling_output_layer_2 = self.decoding_layers_building_blocks(64, up_sampling_output_layer_1, down_sampling_convolution_layer_3)
-    up_sampling_output_layer_3 = self.decoding_layers_building_blocks(32, up_sampling_output_layer_2, down_sampling_convolution_layer_2)
-    up_sampling_output_layer_4 = self.decoding_layers_building_blocks(16, up_sampling_output_layer_3, down_sampling_convolution_layer_1)
+    convolution_layer = Conv3D(1024, (1, 1, 1), padding='same', kernel_initializer='he_normal')(concat_layer)
+    up_sampling_output_layer_1 = self.decoding_layers_building_blocks(512, convolution_layer, down_sampling_convolution_layer_4)
+    up_sampling_output_layer_2 = self.decoding_layers_building_blocks(256, up_sampling_output_layer_1, down_sampling_convolution_layer_3)
+    up_sampling_output_layer_3 = self.decoding_layers_building_blocks(128, up_sampling_output_layer_2, down_sampling_convolution_layer_2)
+    up_sampling_output_layer_4 = self.decoding_layers_building_blocks(64, up_sampling_output_layer_3, down_sampling_convolution_layer_1)
     # classification block
     up_sampling_output_layer_4_shape = up_sampling_output_layer_4.shape
     up_sampling_output_layer_4_2d_reshaped = Reshape((up_sampling_output_layer_4_shape[1], up_sampling_output_layer_4_shape[2], up_sampling_output_layer_4_shape[3] * up_sampling_output_layer_4_shape[4]))(up_sampling_output_layer_4)
