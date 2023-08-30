@@ -83,62 +83,62 @@ class VNet:
     '''
     input_layer = Input((self.utils.resized_x_y, self.utils.resized_x_y, self.utils.num_components_to_keep, 1))
     # down sampling blocks
-    # 16 Channels
+    # 64 Channels
     skip_connection_1 = input_layer
-    down_sampling_convolution_layer_1 = Conv3D(16, (5, 5, 5), padding='same', kernel_initializer='he_normal')(input_layer)
+    down_sampling_convolution_layer_1 = Conv3D(64, (5, 5, 5), padding='same', kernel_initializer='he_normal')(input_layer)
     down_sampling_convolution_layer_1 = BatchNormalization()(down_sampling_convolution_layer_1)
     down_sampling_convolution_layer_1 = PReLU()(down_sampling_convolution_layer_1)
     down_sampling_convolution_layer_1 = Add()([down_sampling_convolution_layer_1, skip_connection_1])
-    down_sampling_output_layer_1 = Conv3D(32, (2, 2, 2), strides=(2, 2, 2), padding='same', kernel_initializer='he_normal')(down_sampling_convolution_layer_1)
+    down_sampling_output_layer_1 = Conv3D(128, (2, 2, 2), strides=(2, 2, 2), padding='same', kernel_initializer='he_normal')(down_sampling_convolution_layer_1)
     
-    # 32 Channels
+    # 128 Channels
     skip_connection_2 = down_sampling_output_layer_1
-    down_sampling_convolution_layer_2 = Conv3D(32, (5, 5, 5), padding='same', kernel_initializer='he_normal')(down_sampling_output_layer_1)
+    down_sampling_convolution_layer_2 = Conv3D(128, (5, 5, 5), padding='same', kernel_initializer='he_normal')(down_sampling_output_layer_1)
     down_sampling_convolution_layer_2 = BatchNormalization()(down_sampling_convolution_layer_2)
     down_sampling_convolution_layer_2 = PReLU()(down_sampling_convolution_layer_2)
-    down_sampling_convolution_layer_2 = Conv3D(32, (5, 5, 5), padding='same', kernel_initializer='he_normal')(down_sampling_convolution_layer_2)
+    down_sampling_convolution_layer_2 = Conv3D(128, (5, 5, 5), padding='same', kernel_initializer='he_normal')(down_sampling_convolution_layer_2)
     down_sampling_convolution_layer_2 = BatchNormalization()(down_sampling_convolution_layer_2)
     down_sampling_convolution_layer_2 = PReLU()(down_sampling_convolution_layer_2)
     down_sampling_convolution_layer_2 = Add()([down_sampling_convolution_layer_2, skip_connection_2])
-    down_sampling_output_layer_2 = Conv3D(64, (2, 2, 2), strides=(2, 2, 2), padding='same', kernel_initializer='he_normal')(down_sampling_convolution_layer_2)
+    down_sampling_output_layer_2 = Conv3D(256, (2, 2, 2), strides=(2, 2, 2), padding='same', kernel_initializer='he_normal')(down_sampling_convolution_layer_2)
     
-    # 64 Channels
-    down_sampling_output_layer_3, down_sampling_convolution_layer_3 = self.encoding_layers_building_blocks(64, down_sampling_output_layer_2)
-    # 128 Channels
-    down_sampling_output_layer_4, down_sampling_convolution_layer_4 = self.encoding_layers_building_blocks(128, down_sampling_output_layer_3)
-    # encoding blocks, 256 Channels
-    encoding_space_output_layer = self.encoding_layers_building_blocks(256, down_sampling_output_layer_4, downsampling_layer=False)
+    # 256 Channels
+    down_sampling_output_layer_3, down_sampling_convolution_layer_3 = self.encoding_layers_building_blocks(256, down_sampling_output_layer_2)
+    # 512 Channels
+    down_sampling_output_layer_4, down_sampling_convolution_layer_4 = self.encoding_layers_building_blocks(512, down_sampling_output_layer_3)
+    # encoding blocks, 1024 Channels
+    encoding_space_output_layer = self.encoding_layers_building_blocks(1024, down_sampling_output_layer_4, downsampling_layer=False)
     
     # up sampling blocks
+    # 512 Channels
+    up_sampling_output_layer_1 = self.decoding_layers_building_blocks(512, encoding_space_output_layer, down_sampling_convolution_layer_4)
+    # 256 Channels
+    up_sampling_output_layer_2 = self.decoding_layers_building_blocks(256, up_sampling_output_layer_1, down_sampling_convolution_layer_3)
     # 128 Channels
-    up_sampling_output_layer_1 = self.decoding_layers_building_blocks(128, encoding_space_output_layer, down_sampling_convolution_layer_4)
-    # 64 Channels
-    up_sampling_output_layer_2 = self.decoding_layers_building_blocks(64, up_sampling_output_layer_1, down_sampling_convolution_layer_3)
-    # 32 Channels
     if down_sampling_convolution_layer_2.shape[3] == 1:
-        upsampling_layer_3 = Conv3DTranspose(32, (2, 2, 1), strides=(2, 2, 1), padding='same', kernel_initializer='he_normal')(up_sampling_output_layer_2)
+        upsampling_layer_3 = Conv3DTranspose(128, (2, 2, 1), strides=(2, 2, 1), padding='same', kernel_initializer='he_normal')(up_sampling_output_layer_2)
         skip_connection_up_3 = upsampling_layer_3
     else:
-        upsampling_layer_3 = Conv3DTranspose(32, (2, 2, 2), strides=(2, 2, 2), padding='same', kernel_initializer='he_normal')(up_sampling_output_layer_2)
+        upsampling_layer_3 = Conv3DTranspose(128, (2, 2, 2), strides=(2, 2, 2), padding='same', kernel_initializer='he_normal')(up_sampling_output_layer_2)
         skip_connection_up_3 = upsampling_layer_3
     upsampling_layer_3 = concatenate([upsampling_layer_3, down_sampling_convolution_layer_2], axis=4)
-    up_sampling_convolution_layer_3 = Conv3D(32, (5, 5, 5), padding='same', kernel_initializer='he_normal')(upsampling_layer_3)
+    up_sampling_convolution_layer_3 = Conv3D(128, (5, 5, 5), padding='same', kernel_initializer='he_normal')(upsampling_layer_3)
     up_sampling_convolution_layer_3 = BatchNormalization()(up_sampling_convolution_layer_3)
     up_sampling_convolution_layer_3 = PReLU()(up_sampling_convolution_layer_3)
-    up_sampling_convolution_layer_3 = Conv3D(32, (5, 5, 5), padding='same', kernel_initializer='he_normal')(up_sampling_convolution_layer_3)
+    up_sampling_convolution_layer_3 = Conv3D(128, (5, 5, 5), padding='same', kernel_initializer='he_normal')(up_sampling_convolution_layer_3)
     up_sampling_convolution_layer_3 = BatchNormalization()(up_sampling_convolution_layer_3)
     up_sampling_convolution_layer_3 = PReLU()(up_sampling_convolution_layer_3)
     up_sampling_output_layer_3 = Add()([up_sampling_convolution_layer_3, skip_connection_up_3])
     
-    # 16 Channels
+    # 64 Channels
     if down_sampling_convolution_layer_1.shape[3] == 1:
-        upsampling_layer_4 = Conv3DTranspose(16, (2, 2, 1), strides=(2, 2, 1), padding='same', kernel_initializer='he_normal')(up_sampling_output_layer_3)
+        upsampling_layer_4 = Conv3DTranspose(64, (2, 2, 1), strides=(2, 2, 1), padding='same', kernel_initializer='he_normal')(up_sampling_output_layer_3)
         skip_connection_up_4 = upsampling_layer_4
     else:
-        upsampling_layer_4 = Conv3DTranspose(16, (2, 2, 2), strides=(2, 2, 2), padding='same', kernel_initializer='he_normal')(up_sampling_output_layer_3)
+        upsampling_layer_4 = Conv3DTranspose(64, (2, 2, 2), strides=(2, 2, 2), padding='same', kernel_initializer='he_normal')(up_sampling_output_layer_3)
         skip_connection_up_4 = upsampling_layer_4
     upsampling_layer_4 = concatenate([upsampling_layer_4, down_sampling_convolution_layer_1], axis=4)
-    up_sampling_convolution_layer_4 = Conv3D(16, (5, 5, 5), padding='same', kernel_initializer='he_normal')(upsampling_layer_4)
+    up_sampling_convolution_layer_4 = Conv3D(64, (5, 5, 5), padding='same', kernel_initializer='he_normal')(upsampling_layer_4)
     up_sampling_convolution_layer_4 = BatchNormalization()(up_sampling_convolution_layer_4)
     up_sampling_convolution_layer_4 = PReLU()(up_sampling_convolution_layer_4)
     up_sampling_output_layer_4 = Add()([up_sampling_convolution_layer_4, skip_connection_up_4])
