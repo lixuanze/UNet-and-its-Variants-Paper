@@ -26,10 +26,10 @@ class UNet_plus_plus:
       '''
       convolution_layer = Conv3D(units, (3, 3, 3), padding='same', kernel_initializer='he_normal')(in_layer)
       convolution_layer = BatchNormalization()(convolution_layer)
-      convolution_layer = Activation('elu')(convolution_layer)
+      convolution_layer = Activation('relu')(convolution_layer)
       convolution_layer = Conv3D(units, (3, 3, 3), padding='same', kernel_initializer='he_normal')(convolution_layer)
       convolution_layer = BatchNormalization()(convolution_layer)
-      convolution_layer = Activation('elu')(convolution_layer)
+      convolution_layer = Activation('relu')(convolution_layer)
       if pooling_layer == True:
           out_layer = MaxPooling3D(pool_size=(2, 2, 2), padding='same')(convolution_layer)
           return out_layer, convolution_layer
@@ -47,27 +47,21 @@ class UNet_plus_plus:
       upsampling_layer = concatenate([upsampling_layer, concat_layer], axis=4)
       convolution_layer = Conv3D(units, (3, 3, 3), padding='same', kernel_initializer='he_normal')(upsampling_layer)
       convolution_layer = BatchNormalization()(convolution_layer)
-      convolution_layer = Activation('elu')(convolution_layer)
+      convolution_layer = Activation('relu')(convolution_layer)
       convolution_layer = Conv3D(units, (3, 3, 3), padding='same', kernel_initializer='he_normal')(convolution_layer)
       convolution_layer = BatchNormalization()(convolution_layer)
-      out_layer = Activation('elu')(convolution_layer)
+      out_layer = Activation('relu')(convolution_layer)
       return out_layer
   
-  def CCE_dice_loss(self, y_true, y_pred, smooth=1e-6):
-    '''
-    The custom loss function combining the categorical cross-entropy loss and the dice loss as defined in the paper.
-    '''
-    # Dice Loss
-    y_true_f = Flatten()(y_true)
-    y_pred_f = Flatten()(y_pred)
-    intersection = reduce_sum(y_true_f * y_pred_f)
-    dice = (2. * intersection + smooth) / (reduce_sum(y_true_f) + reduce_sum(y_pred_f) + smooth)
-    dice_loss = 1 - dice  # Corrected this line
-    
-    # CCE Loss
-    categorical_cross_entropy_loss = tf.keras.losses.categorical_crossentropy(y_true, y_pred)
-    CCE_dice = categorical_cross_entropy_loss + dice_loss
-    return CCE_dice
+  def dice_loss(self, y_true, y_pred, smooth=1e-6):
+    # Calculate intersection and the sum for the numerator and denominator of the Dice score
+    intersection = K.sum(y_true * y_pred, axis=[0, 1, 2])
+    sum_true_pred = K.sum(y_true, axis=[0, 1, 2]) + K.sum(y_pred, axis=[0, 1, 2])
+
+    # Calculate the Dice score for each class
+    dice_scores = (2. * intersection + smooth) / (sum_true_pred + smooth)
+    dice_loss_multiclass = 1 - K.mean(dice_scores)
+    return dice_loss_multiclass
       
   def build_3d_unet_plus_plus(self):
     '''
@@ -105,30 +99,30 @@ class UNet_plus_plus:
     up_output_4 = self.decoding_layers_building_blocks(64, up_output_42, concat_layer_41)
     
     # classification blocks
-    up_output_1_shape = up_output_1.shape
-    up_output_1_2d_reshaped = Reshape((up_output_1_shape[1], up_output_1_shape[2], up_output_1_shape[3] * up_output_1_shape[4]))(up_output_1)
-    output_layer_1 = Conv2D(self.utils.n_features, (1, 1), activation='softmax', name='output_layer_1')(up_output_1_2d_reshaped)
+    output_layer_1 = Conv3D(1, (1, 1, 1))(up_output_1)
+    output_layer_1 = Reshape((self.utils.resized_x_y, self.utils.resized_x_y, self.utils.num_components_to_keep))(output_layer_1)
+    output_layer_1 = Activation('softmax', name='output_layer_1')(output_layer_1)
     
-    up_output_2_shape = up_output_2.shape
-    up_output_2_2d_reshaped = Reshape((up_output_2_shape[1], up_output_2_shape[2], up_output_2_shape[3] * up_output_2_shape[4]))(up_output_2)
-    output_layer_2 = Conv2D(self.utils.n_features, (1, 1), activation='softmax', name='output_layer_2')(up_output_2_2d_reshaped)
+    output_layer_2 = Conv3D(1, (1, 1, 1))(up_output_2)
+    output_layer_2 = Reshape((self.utils.resized_x_y, self.utils.resized_x_y, self.utils.num_components_to_keep))(output_layer_2)
+    output_layer_2 = Activation('softmax', name='output_layer_2')(output_layer_2)
     
-    up_output_3_shape = up_output_3.shape
-    up_output_3_2d_reshaped = Reshape((up_output_3_shape[1], up_output_3_shape[2], up_output_3_shape[3] * up_output_3_shape[4]))(up_output_3)
-    output_layer_3 = Conv2D(self.utils.n_features, (1, 1), activation='softmax', name='output_layer_3')(up_output_3_2d_reshaped)
+    output_layer_3 = Conv3D(1, (1, 1, 1))(up_output_3)
+    output_layer_3 = Reshape((self.utils.resized_x_y, self.utils.resized_x_y, self.utils.num_components_to_keep))(output_layer_3)
+    output_layer_3 = Activation('softmax', name='output_layer_3')(output_layer_3)
     
-    up_output_4_shape = up_output_4.shape
-    up_output_4_2d_reshaped = Reshape((up_output_4_shape[1], up_output_4_shape[2], up_output_4_shape[3] * up_output_4_shape[4]))(up_output_4)
-    output_layer_4 = Conv2D(self.utils.n_features, (1, 1), activation='softmax', name='output_layer_4')(up_output_4_2d_reshaped)
+    output_layer_4 = Conv3D(1, (1, 1, 1))(up_output_4)
+    output_layer_4 = Reshape((self.utils.resized_x_y, self.utils.resized_x_y, self.utils.num_components_to_keep))(output_layer_4)
+    output_layer_4 = Activation('softmax', name='output_layer_4')(output_layer_4)
     
     if self.utils.deep_supervision == True:
         model = Model(inputs=[input_layer], outputs=[output_layer_1, output_layer_2, output_layer_3, output_layer_4])
         learning_rate_scheduler = tf.keras.optimizers.schedules.ExponentialDecay(initial_learning_rate=1e-3, decay_steps=20000, decay_rate=0.99)
-        model.compile(optimizer = tf.keras.optimizers.Adam(learning_rate = learning_rate_scheduler), loss={'output_layer_1': self.CCE_dice_loss, 'output_layer_2': self.CCE_dice_loss, 'output_layer_3': self.CCE_dice_loss, 'output_layer_4': self.CCE_dice_loss}, metrics={'output_layer_1': tf.keras.metrics.MeanIoU(num_classes = self.utils.n_features), 'output_layer_2': tf.keras.metrics.MeanIoU(num_classes = self.utils.n_features), 'output_layer_3': tf.keras.metrics.MeanIoU(num_classes = self.utils.n_features), 'output_layer_4': tf.keras.metrics.MeanIoU(num_classes = self.utils.n_features)})
+        model.compile(optimizer = tf.keras.optimizers.Adam(learning_rate = learning_rate_scheduler), loss={'output_layer_1': self.dice_loss, 'output_layer_2': self.dice_loss, 'output_layer_3': self.dice_loss, 'output_layer_4': self.dice_loss}, metrics={'output_layer_1': tf.keras.metrics.MeanIoU(num_classes = self.utils.n_features), 'output_layer_2': tf.keras.metrics.MeanIoU(num_classes = self.utils.n_features), 'output_layer_3': tf.keras.metrics.MeanIoU(num_classes = self.utils.n_features), 'output_layer_4': tf.keras.metrics.MeanIoU(num_classes = self.utils.n_features)})
     else:
         model = Model(inputs=[input_layer], outputs=[output_layer_4])
         learning_rate_scheduler = tf.keras.optimizers.schedules.ExponentialDecay(initial_learning_rate=1e-3, decay_steps=20000, decay_rate=0.99)
-        model.compile(optimizer = tf.keras.optimizers.Adam(learning_rate = learning_rate_scheduler), loss={'output_layer_4': self.CCE_dice_loss}, metrics={'output_layer_4': tf.keras.metrics.MeanIoU(num_classes = self.utils.n_features)})
+        model.compile(optimizer = tf.keras.optimizers.Adam(learning_rate = learning_rate_scheduler), loss={'output_layer_4': self.dice_loss}, metrics={'output_layer_4': tf.keras.metrics.MeanIoU(num_classes = self.utils.n_features)})
     return model
 
   def train(self):
@@ -171,7 +165,7 @@ class UNet_plus_plus:
       print("Prepare Data for Training, Validation & Testing...")
       X_processed, y_processed = self.utils.prepare_dataset_for_training(X_normalized, y)
       X_train, X_, y_train, y_ = train_test_split(X_processed, y_processed, train_size = 1 - self.utils.test_ratio, test_size = self.utils.test_ratio, random_state=1234)
-      X_validation, X_test, y_validation, y_test = train_test_split(X_, y_, train_size = 1 - self.utils.test_ratio, test_size = self.utils.test_ratio, random_state=1234)
+      X_validation, X_test, y_validation, y_test = train_test_split(X_, y_, train_size = 1 - self.utils.test_ratio, test_size = self.utils.test_ratio, random_state=4321)
       self.utils.X_train, self.utils.X_validation, self.utils.X_test = X_train, X_validation, X_test
       self.utils.y_train, self.utils.y_validation, self.utils.y_test = y_train, y_validation, y_test
       np.save('X_train.npy', self.utils.X_train)
@@ -182,15 +176,15 @@ class UNet_plus_plus:
       np.save('y_test.npy', self.utils.y_test)
       print("Data Processing Completed")
     if self.utils.continue_training == True:
-        custom_objects = {'CCE_dice_loss': self.CCE_dice_loss}
+        custom_objects = {'dice_loss': self.dice_loss}
         unet = load_model('models/unet_plus_plus_best_model.h5', custom_objects=custom_objects)
         unet.summary()
         if self.utils.override_trained_optimizer:
             learning_rate_scheduler = tf.keras.optimizers.schedules.ExponentialDecay(initial_learning_rate=1e-3, decay_steps=20000, decay_rate=0.99)
             if self.utils.deep_supervision == True:
-                unet.compile(optimizer = tf.keras.optimizers.Adam(learning_rate = learning_rate_scheduler), loss={'output_layer_1': self.CCE_dice_loss, 'output_layer_2': self.CCE_dice_loss, 'output_layer_3': self.CCE_dice_loss, 'output_layer_4': self.CCE_dice_loss}, metrics={'output_layer_1': tf.keras.metrics.MeanIoU(num_classes = self.utils.n_features), 'output_layer_2': tf.keras.metrics.MeanIoU(num_classes = self.utils.n_features), 'output_layer_3': tf.keras.metrics.MeanIoU(num_classes = self.utils.n_features), 'output_layer_4': tf.keras.metrics.MeanIoU(num_classes = self.utils.n_features)})
+                unet.compile(optimizer = tf.keras.optimizers.Adam(learning_rate = learning_rate_scheduler), loss={'output_layer_1': self.dice_loss, 'output_layer_2': self.dice_loss, 'output_layer_3': self.dice_loss, 'output_layer_4': self.dice_loss}, metrics={'output_layer_1': tf.keras.metrics.MeanIoU(num_classes = self.utils.n_features), 'output_layer_2': tf.keras.metrics.MeanIoU(num_classes = self.utils.n_features), 'output_layer_3': tf.keras.metrics.MeanIoU(num_classes = self.utils.n_features), 'output_layer_4': tf.keras.metrics.MeanIoU(num_classes = self.utils.n_features)})
             else:
-                unet.compile(optimizer = tf.keras.optimizers.Adam(learning_rate = learning_rate_scheduler), loss={'output_layer_4': self.CCE_dice_loss}, metrics={'output_layer_4': tf.keras.metrics.MeanIoU(num_classes = self.utils.n_features)})
+                unet.compile(optimizer = tf.keras.optimizers.Adam(learning_rate = learning_rate_scheduler), loss={'output_layer_4': self.dice_loss}, metrics={'output_layer_4': tf.keras.metrics.MeanIoU(num_classes = self.utils.n_features)})
     else:
         unet = self.build_3d_unet_plus_plus()
         unet.summary()
