@@ -1,9 +1,10 @@
 from utils import utils
 import tensorflow as tf
+from tensorflow import reduce_sum
 import tensorflow_probability as tfp
 from skimage.transform import resize
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Input, Conv3D, Reshape, concatenate, Conv2D, MaxPooling3D, Conv3DTranspose, BatchNormalization, Add, Activation, Dropout
+from tensorflow.keras.layers import Input, Conv3D, Reshape, concatenate, Conv2D, MaxPooling3D, Conv3DTranspose, BatchNormalization, Add, Activation, Dropout, Flatten
 from tensorflow.keras.callbacks import ModelCheckpoint
 from tensorflow.keras import backend as K
 from tensorflow.keras.models import load_model
@@ -51,6 +52,16 @@ class UNet:
       convolution_layer = BatchNormalization()(convolution_layer)
       out_layer = Activation('relu')(convolution_layer)
       return out_layer
+
+  def dice_loss(self, y_true, y_pred, smooth=1e-6):
+    # Calculate intersection and the sum for the numerator and denominator of the Dice score
+    intersection = K.sum(y_true * y_pred, axis=[0, 1, 2])
+    sum_true_pred = K.sum(y_true, axis=[0, 1, 2]) + K.sum(y_pred, axis=[0, 1, 2])
+
+    # Calculate the Dice score for each class
+    dice_scores = (2. * intersection + smooth) / (sum_true_pred + smooth)
+    dice_loss_multiclass = 1 - K.mean(dice_scores)
+    return dice_loss_multiclass
       
   def build_3d_unet(self):
     '''
@@ -70,13 +81,13 @@ class UNet:
     up_sampling_output_layer_3 = self.decoding_layers_building_blocks(128, up_sampling_output_layer_2, down_sampling_convolution_layer_2)
     up_sampling_output_layer_4 = self.decoding_layers_building_blocks(64, up_sampling_output_layer_3, down_sampling_convolution_layer_1)
     # classification block
-    up_sampling_output_layer_4_shape = up_sampling_output_layer_4.shape
-    up_sampling_output_layer_4_2d_reshaped = Reshape((up_sampling_output_layer_4_shape[1], up_sampling_output_layer_4_shape[2], up_sampling_output_layer_4_shape[3] * up_sampling_output_layer_4_shape[4]))(up_sampling_output_layer_4)
-    output_layer = Conv2D(self.utils.n_features, (1, 1), activation='softmax', name='output_layer')(up_sampling_output_layer_4_2d_reshaped)
+    output_layer = Conv3D(1, (1, 1, 1))(up_sampling_output_layer_4)
+    output_layer = Reshape((self.utils.resized_x_y, self.utils.resized_x_y, self.utils.num_components_to_keep))(output_layer)
+    output_layer = Activation('softmax', name='output_layer')(output_layer)
 
     model = Model(inputs=[input_layer], outputs=[output_layer])
     learning_rate_scheduler = tf.keras.optimizers.schedules.ExponentialDecay(initial_learning_rate=1e-3, decay_steps=20000, decay_rate=0.99)
-    model.compile(optimizer = tf.keras.optimizers.Adam(learning_rate = learning_rate_scheduler), loss={'output_layer': 'categorical_crossentropy'}, metrics=[tf.keras.metrics.MeanIoU(num_classes = self.utils.n_features)])
+    model.compile(optimizer = tf.keras.optimizers.Adam(learning_rate = learning_rate_scheduler), loss={'output_layer': self.dice_loss}, metrics=[tf.keras.metrics.MeanIoU(num_classes = self.utils.n_features)])
     return model
 
   def train(self):
@@ -131,7 +142,7 @@ class UNet:
       print("Data Processing Completed")
     if self.utils.continue_training == True:
         # Custom objects, if any (you might need to define them depending on the custom loss, metrics, etc.)
-        custom_objects = {'MeanIoU': tf.keras.metrics.MeanIoU}
+        custom_objects = {'dice_loss': self.dice_loss}
         # Load the full model, including optimizer state
         unet = load_model('models/unet_best_model.h5', custom_objects=custom_objects)
         unet.summary()
@@ -142,7 +153,7 @@ class UNet:
         unet = self.build_3d_unet()
         unet.summary()
     print("Training Begins...")
-    unet.fit(x = self.utils.X_train, y = self.utils.y_train, batch_size = self.utils.batch_size, epochs=self.utils.num_epochs, validation_data=(self.utils.X_validation, self.utils.y_validation), callbacks=[tf.keras.callbacks.ModelCheckpoint("models/unet_best_model.h5", save_best_only=True), tf.keras.callbacks.EarlyStopping(patience=200, restore_best_weights=True)])
+    unet.fit(x = self.utils.X_train, y = self.utils.y_train, batch_size = self.utils.batch_size, epochs=self.utils.num_epochs, validation_data=(self.utils.X_validation, self.utils.y_validation), callbacks=[tf.keras.callbacks.ModelCheckpoint("models/unet_best_model.h5", save_best_only=True), tf.keras.callbacks.EarlyStopping(patience=50, restore_best_weights=True)])
     print("Training Ended, Model Saved!")
     return None
 
