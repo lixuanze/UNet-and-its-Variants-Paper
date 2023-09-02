@@ -77,7 +77,7 @@ class Attention_UNet:
       # 1x1x1 convolution
       psi = Conv3D(1, (1, 1, 1), strides=(shape_x[1] // shape_g[1], shape_x[2] // shape_g[2], shape_x[3] // shape_g[3]), padding='same', kernel_initializer='he_normal')(add_xg)
       psi = Activation('sigmoid')(psi)
-      shape_sigmoid = K.int_shape(shape_sigmoid)
+      shape_sigmoid = K.int_shape(psi)
 
       # Upsampling psi back to the original dimensions of x signal
       upsample_sigmoid_xg = UpSampling3D(size=(shape_x[1] // shape_sigmoid[1], shape_x[2] // shape_sigmoid[2], shape_x[3] // shape_sigmoid[3]))(psi)
@@ -94,17 +94,14 @@ class Attention_UNet:
       return out_layer
   
   def dice_loss(self, y_true, y_pred, smooth=1e-6):
-    '''
-    The custom loss function combining the categorical cross-entropy loss and the dice loss as defined in the paper.
-    '''
-    # Dice Loss
-    y_true_f = Flatten()(y_true)
-    y_pred_f = Flatten()(y_pred)
-    intersection = reduce_sum(y_true_f * y_pred_f)
-    dice = (2. * intersection + smooth) / (reduce_sum(y_true_f) + reduce_sum(y_pred_f) + smooth)
-    dice_loss = 1 - dice  # Corrected this line
+    # Calculate intersection and the sum for the numerator and denominator of the Dice score
+    intersection = K.sum(y_true * y_pred, axis=[0, 1, 2])
+    sum_true_pred = K.sum(y_true, axis=[0, 1, 2]) + K.sum(y_pred, axis=[0, 1, 2])
 
-    return dice_loss
+    # Calculate the Dice score for each class
+    dice_scores = (2. * intersection + smooth) / (sum_true_pred + smooth)
+    dice_loss_multiclass = 1 - K.mean(dice_scores)
+    return dice_loss_multiclass
       
   def build_3d_attention_unet(self):
     '''
@@ -128,9 +125,9 @@ class Attention_UNet:
     up_sampling_attention_layer_4 = self.attention_layers_building_blocks(64, down_sampling_convolution_layer_1, up_sampling_output_layer_3)
     up_sampling_output_layer_4 = self.decoding_layers_building_blocks(64, up_sampling_output_layer_3, up_sampling_attention_layer_4)
     # classification block
-    up_sampling_output_layer_4_shape = up_sampling_output_layer_4.shape
-    up_sampling_output_layer_4_2d_reshaped = Reshape((up_sampling_output_layer_4_shape[1], up_sampling_output_layer_4_shape[2], up_sampling_output_layer_4_shape[3] * up_sampling_output_layer_4_shape[4]))(up_sampling_output_layer_4)
-    output_layer = Conv2D(self.utils.n_features, (1, 1), activation='softmax', name='output_layer')(up_sampling_output_layer_4_2d_reshaped)
+    output_layer = Conv3D(1, (1, 1, 1))(up_sampling_output_layer_4)
+    output_layer = Reshape((self.utils.resized_x_y, self.utils.resized_x_y, self.utils.num_components_to_keep))(output_layer)
+    output_layer = Activation('softmax', name='output_layer')(output_layer)
 
     model = Model(inputs=[input_layer], outputs=[output_layer])
     learning_rate_scheduler = tf.keras.optimizers.schedules.ExponentialDecay(initial_learning_rate=1e-3, decay_steps=20000, decay_rate=0.99)
@@ -200,7 +197,7 @@ class Attention_UNet:
         attention_unet = self.build_3d_attention_unet()
         attention_unet.summary()
     print("Training Begins...")
-    attention_unet.fit(x = self.utils.X_train, y = self.utils.y_train, batch_size = self.utils.batch_size, epochs=self.utils.num_epochs, validation_data=(self.utils.X_validation, self.utils.y_validation), callbacks=[tf.keras.callbacks.ModelCheckpoint("models/attention_unet_best_model.h5", save_best_only=True), tf.keras.callbacks.EarlyStopping(patience=200, restore_best_weights=True)])
+    attention_unet.fit(x = self.utils.X_train, y = self.utils.y_train, batch_size = self.utils.batch_size, epochs=self.utils.num_epochs, validation_data=(self.utils.X_validation, self.utils.y_validation), callbacks=[tf.keras.callbacks.ModelCheckpoint("models/attention_unet_best_model.h5", save_best_only=True), tf.keras.callbacks.EarlyStopping(patience=50, restore_best_weights=True)])
     print("Training Ended, Model Saved!")
     return None
 
