@@ -1,5 +1,7 @@
 # UNet-and-its-Variants-Paper-Codebase
 
+This is a sub-module of the BHSIpy.
+
 ## I. Sample Usage of the Deep Learning Solver
 
 ### 3D-UNet
