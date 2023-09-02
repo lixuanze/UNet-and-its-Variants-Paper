@@ -174,7 +174,7 @@ class Attention_UNet:
       print("Prepare Data for Training, Validation & Testing...")
       X_processed, y_processed = self.utils.prepare_dataset_for_training(X_normalized, y)
       X_train, X_, y_train, y_ = train_test_split(X_processed, y_processed, train_size = 1 - self.utils.test_ratio, test_size = self.utils.test_ratio, random_state=1234)
-      X_validation, X_test, y_validation, y_test = train_test_split(X_, y_, train_size = 1 - self.utils.test_ratio, test_size = self.utils.test_ratio, random_state=1234)
+      X_validation, X_test, y_validation, y_test = train_test_split(X_, y_, train_size = 1 - self.utils.test_ratio, test_size = self.utils.test_ratio, random_state=4321)
       self.utils.X_train, self.utils.X_validation, self.utils.X_test = X_train, X_validation, X_test
       self.utils.y_train, self.utils.y_validation, self.utils.y_test = y_train, y_validation, y_test
       np.save('X_train.npy', self.utils.X_train)
