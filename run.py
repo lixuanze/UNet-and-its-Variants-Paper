@@ -8,6 +8,8 @@ from inception_unet_3d import Inception_UNet
 from residual_unet_3d import Residual_UNet
 from dense_unet_3d import Dense_UNet
 from r2_unet_3d import R2UNet
+from attention_unet_3d import Attention_UNet
+from attention_unet_3d_plus_plus import Attention_UNet_plus_plus
 from absl import app
 from absl import flags
 
@@ -58,6 +60,10 @@ def main(argv):
         Model_UNet = Dense_UNet(utils = Utils)
     elif FLAGS.method == "r2unet":
         Model_UNet = R2UNet(utils = Utils)
+    elif FLAGS.method == "attention_unet":
+        Model_UNet = Attention_UNet(utils = Utils)
+    elif FLAGS.method == "attention_unet_plus_plus":
+        Model_UNet = Attention_UNet_plus_plus(utils = Utils)
     
     if FLAGS.eval_only:
         prediction_encoded, y_test = Model_UNet.predict()
