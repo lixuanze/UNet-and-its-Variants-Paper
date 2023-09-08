@@ -15,7 +15,7 @@ import cv2
 
 class Residual_UNet:
   """
-  Class for Deep Learning Hyperspectral Segmentation with the Residual 3D-UNet (Li, 2021 & Zhang, 2017).
+  Class for Deep Learning Hyperspectral Segmentation with the Residual 3D-UNet (Zhang, 2017).
   Input:  utils: the utilility class
   """
   def __init__(self, utils):
@@ -72,7 +72,7 @@ class Residual_UNet:
     
   def build_3d_residual_unet(self):
     '''
-    This function is a tensorflow realization of a 3D-Residual UNet (2021).
+    This function is a tensorflow realization of a 3D-Residual UNet (2017).
     '''
     input_layer = Input((self.utils.resized_x_y, self.utils.resized_x_y, self.utils.num_components_to_keep, 1))
     # down sampling blocks
@@ -151,7 +151,7 @@ class Residual_UNet:
         # Custom objects, if any (you might need to define them depending on the custom loss, metrics, etc.)
         custom_objects = {'dice_loss': self.dice_loss}
         # Load the full model, including optimizer state
-        residual_unet = load_model('models/residual_unet_best_model.h5', custom_objects=custom_objects)
+        residual_unet = load_model('saved_models/residual_unet_best_model.h5', custom_objects=custom_objects)
         residual_unet.summary()
         if self.utils.override_trained_optimizer:
             learning_rate_scheduler = tf.keras.optimizers.schedules.ExponentialDecay(initial_learning_rate=1e-3, decay_steps=20000, decay_rate=0.99)
@@ -160,7 +160,7 @@ class Residual_UNet:
         residual_unet = self.build_3d_residual_unet()
         residual_unet.summary()
     print("Training Begins...")
-    residual_unet.fit(x = self.utils.X_train, y = self.utils.y_train, batch_size = self.utils.batch_size, epochs=self.utils.num_epochs, validation_data=(self.utils.X_validation, self.utils.y_validation), callbacks=[tf.keras.callbacks.ModelCheckpoint("models/residual_unet_best_model.h5", save_best_only=True), tf.keras.callbacks.EarlyStopping(patience=50, restore_best_weights=True)])
+    residual_unet.fit(x = self.utils.X_train, y = self.utils.y_train, batch_size = self.utils.batch_size, epochs=self.utils.num_epochs, validation_data=(self.utils.X_validation, self.utils.y_validation), callbacks=[tf.keras.callbacks.ModelCheckpoint("saved_models/residual_unet_best_model.h5", save_best_only=True), tf.keras.callbacks.EarlyStopping(patience=50, restore_best_weights=True)])
     print("Training Ended, Model Saved!")
     return None
 
@@ -169,7 +169,7 @@ class Residual_UNet:
     This method will take a pre-trained model and make corresponding predictions.
     '''
     residual_unet = self.build_3d_residual_unet()
-    residual_unet.load_weights('models/residual_unet_best_model.h5')
+    residual_unet.load_weights('saved_models/residual_unet_best_model.h5')
     if new_data is not None:
       n_features = self.utils.n_features
       if self.utils.svd_denoising == True:
