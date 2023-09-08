@@ -29,7 +29,7 @@ class ExpendAsLayer(Layer):
 
 class Attention_UNet:
   """
-  Class for Deep Learning Hyperspectral Segmentation with an Attention UNet model by Oktay 2018.
+  Class for Deep Learning Hyperspectral Segmentation with an Attention UNet model similar to the one proposed by Oktay 2018.
   Input:  utils: the utilility class
   """
   def __init__(self, utils):
