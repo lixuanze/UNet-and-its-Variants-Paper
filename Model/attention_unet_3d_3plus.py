@@ -466,7 +466,7 @@ class Attention_UNet3Plus:
       X_, pca = self.utils.run_PCA(image_cube = X_normalized, num_principal_components = self.utils.num_components_to_keep)
       X_ = cv2.resize(X_, (self.utils.resized_x_y, self.utils.resized_x_y), interpolation = cv2.INTER_LANCZOS4)
       X_test = X_.reshape(-1, self.utils.resized_x_y, self.utils.resized_x_y, self.utils.num_components_to_keep, 1)
-      prediction_result = attetion_unet.predict(X_test)[4]
+      prediction_result = attetion_unet.predict(X_test)[0]
       prediction_encoded = np.zeros((self.utils.resized_x_y, self.utils.resized_x_y))
       for i in range(self.utils.resized_x_y):
         for j in range(self.utils.resized_x_y):
@@ -486,7 +486,7 @@ class Attention_UNet3Plus:
       prediction_result = np.zeros(shape=(total_test_length, self.utils.resized_x_y, self.utils.resized_x_y, self.utils.n_features))
       for i in range(0, total_test_length, self.utils.batch_size):
         print("Testing sample from:", i, "to:", i+self.utils.batch_size)
-        prediction_result[i:i+self.utils.batch_size] = attetion_unet.predict(self.utils.X_test[i:i+self.utils.batch_size])[4]
+        prediction_result[i:i+self.utils.batch_size] = attetion_unet.predict(self.utils.X_test[i:i+self.utils.batch_size])[0]
 
       prediction_ = np.zeros(shape=(total_test_length, self.utils.resized_x_y, self.utils.resized_x_y))
       for k in range(total_test_length):
