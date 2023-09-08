@@ -15,7 +15,7 @@ import cv2
 
 class Residual_UNet:
   """
-  Class for Deep Learning Hyperspectral Segmentation with the Residual 3D-UNet (Zhang, 2017).
+  Class for Deep Learning Hyperspectral Segmentation with the Residual 3D-UNet (similar to the one proposed by Zhang, 2017).
   Input:  utils: the utilility class
   """
   def __init__(self, utils):
