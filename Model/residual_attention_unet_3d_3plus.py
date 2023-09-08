@@ -432,7 +432,7 @@ class Residual_Attention_UNet3Plus:
         # Custom objects, if any (you might need to define them depending on the custom loss, metrics, etc.)
         custom_objects = {'unet3p_hybrid_loss': self.unet3p_hybrid_loss, 'ExpendAsLayer': ExpendAsLayer}
         # Load the full model, including optimizer state
-        attetion_unet = load_model('models/residual_attention_unet_3plus_best_model.h5', custom_objects=custom_objects)
+        attetion_unet = load_model('saved_models/residual_attention_unet_3plus_best_model.h5', custom_objects=custom_objects)
         attetion_unet.summary()
         if self.utils.override_trained_optimizer:
             learning_rate_scheduler = tf.keras.optimizers.schedules.ExponentialDecay(initial_learning_rate=1e-3, decay_steps=20000, decay_rate=0.99)
@@ -444,7 +444,7 @@ class Residual_Attention_UNet3Plus:
         attetion_unet = self.build_3d_attention_unet_3plus()
         attetion_unet.summary()
     print("Training Begins...")
-    attetion_unet.fit(x = self.utils.X_train, y = self.utils.y_train, batch_size = self.utils.batch_size, epochs=self.utils.num_epochs, validation_data=(self.utils.X_validation, self.utils.y_validation), callbacks=[tf.keras.callbacks.ModelCheckpoint("models/residual_attention_unet_3plus_best_model.h5", save_best_only=True), tf.keras.callbacks.EarlyStopping(patience=50, restore_best_weights=True)])
+    attetion_unet.fit(x = self.utils.X_train, y = self.utils.y_train, batch_size = self.utils.batch_size, epochs=self.utils.num_epochs, validation_data=(self.utils.X_validation, self.utils.y_validation), callbacks=[tf.keras.callbacks.ModelCheckpoint("saved_models/residual_attention_unet_3plus_best_model.h5", save_best_only=True), tf.keras.callbacks.EarlyStopping(patience=50, restore_best_weights=True)])
     print("Training Ended, Model Saved!")
     return None
 
@@ -453,7 +453,7 @@ class Residual_Attention_UNet3Plus:
     This method will take a pre-trained model and make corresponding predictions.
     '''
     attetion_unet = self.build_3d_attention_unet_3plus()
-    attetion_unet.load_weights('models/residual_attention_unet_3plus_best_model.h5')
+    attetion_unet.load_weights('saved_models/residual_attention_unet_3plus_best_model.h5')
     if new_data is not None:
       n_features = self.utils.n_features
       if self.utils.svd_denoising == True:
@@ -481,7 +481,7 @@ class Residual_Attention_UNet3Plus:
       X_, pca = self.utils.run_PCA(image_cube = X_normalized, num_principal_components = self.utils.num_components_to_keep)
       X_ = cv2.resize(X_, (self.utils.resized_x_y, self.utils.resized_x_y), interpolation = cv2.INTER_LANCZOS4)
       X_test = X_.reshape(-1, self.utils.resized_x_y, self.utils.resized_x_y, self.utils.num_components_to_keep, 1)
-      prediction_result = attetion_unet.predict(X_test)
+      prediction_result = attetion_unet.predict(X_test)[0]
       prediction_encoded = np.zeros((self.utils.resized_x_y, self.utils.resized_x_y))
       for i in range(self.utils.resized_x_y):
         for j in range(self.utils.resized_x_y):
@@ -501,7 +501,7 @@ class Residual_Attention_UNet3Plus:
       prediction_result = np.zeros(shape=(total_test_length, self.utils.resized_x_y, self.utils.resized_x_y, self.utils.n_features))
       for i in range(0, total_test_length, self.utils.batch_size):
         print("Testing sample from:", i, "to:", i+self.utils.batch_size)
-        prediction_result[i:i+self.utils.batch_size] = attetion_unet.predict(self.utils.X_test[i:i+self.utils.batch_size])
+        prediction_result[i:i+self.utils.batch_size] = attetion_unet.predict(self.utils.X_test[i:i+self.utils.batch_size])[0]
 
       prediction_ = np.zeros(shape=(total_test_length, self.utils.resized_x_y, self.utils.resized_x_y))
       for k in range(total_test_length):
