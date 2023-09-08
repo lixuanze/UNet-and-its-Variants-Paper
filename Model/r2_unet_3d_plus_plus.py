@@ -16,7 +16,7 @@ import cv2
 
 class R2UNet_plus_plus:
   """
-  Class for Deep Learning Hyperspectral Segmentation with the (2022) R2U++: A Multiscale Recurrent Residual U-Net with Dense Skip Connections for Medical Image Segmentation.
+  Class for Deep Learning Hyperspectral Segmentation with the one similar to the (2022) R2U++: A Multiscale Recurrent Residual U-Net with Dense Skip Connections for Medical Image Segmentation.
   Input:  utils: the utilility class
   """
   def __init__(self, utils):
