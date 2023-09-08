@@ -16,7 +16,7 @@ import cv2
 
 class R2UNet:
   """
-  Class for Deep Learning Hyperspectral Segmentation with the 3D-R2-UNet (Alom et.al, 2018).
+  Class for Deep Learning Hyperspectral Segmentation with an architecture similar to 3D-R2-UNet (Alom et.al, 2018).
   Input:  utils: the utilility class
   """
   def __init__(self, utils):
@@ -166,7 +166,7 @@ class R2UNet:
         # Custom objects, if any (you might need to define them depending on the custom loss, metrics, etc.)
         custom_objects = {'dice_loss': self.dice_loss}
         # Load the full model, including optimizer state
-        r2unet = load_model('models/r2unet_best_model.h5', custom_objects=custom_objects)
+        r2unet = load_model('saved_models/r2unet_best_model.h5', custom_objects=custom_objects)
         r2unet.summary()
         if self.utils.override_trained_optimizer:
             learning_rate_scheduler = tf.keras.optimizers.schedules.ExponentialDecay(initial_learning_rate=1e-3, decay_steps=20000, decay_rate=0.99)
@@ -175,7 +175,7 @@ class R2UNet:
         r2unet = self.build_3d_r2unet()
         r2unet.summary()
     print("Training Begins...")
-    r2unet.fit(x = self.utils.X_train, y = self.utils.y_train, batch_size = self.utils.batch_size, epochs=self.utils.num_epochs, validation_data=(self.utils.X_validation, self.utils.y_validation), callbacks=[tf.keras.callbacks.ModelCheckpoint("models/r2unet_best_model.h5", save_best_only=True), tf.keras.callbacks.EarlyStopping(patience=50, restore_best_weights=True)])
+    r2unet.fit(x = self.utils.X_train, y = self.utils.y_train, batch_size = self.utils.batch_size, epochs=self.utils.num_epochs, validation_data=(self.utils.X_validation, self.utils.y_validation), callbacks=[tf.keras.callbacks.ModelCheckpoint("saved_models/r2unet_best_model.h5", save_best_only=True), tf.keras.callbacks.EarlyStopping(patience=50, restore_best_weights=True)])
     print("Training Ended, Model Saved!")
     return None
 
@@ -184,7 +184,7 @@ class R2UNet:
     This method will take a pre-trained model and make corresponding predictions.
     '''
     r2unet = self.build_3d_r2unet()
-    r2unet.load_weights('models/r2unet_best_model.h5')
+    r2unet.load_weights('saved_models/r2unet_best_model.h5')
     if new_data is not None:
       n_features = self.utils.n_features
       if self.utils.svd_denoising == True:
