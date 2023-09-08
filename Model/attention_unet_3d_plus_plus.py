@@ -29,7 +29,7 @@ class ExpendAsLayer(Layer):
 
 class Attention_UNet_plus_plus:
   """
-  Class for Deep Learning Hyperspectral Segmentation with the 2020 Attention UNet++ by Li et.al.
+  Class for Deep Learning Hyperspectral Segmentation similar to the 2020 Attention UNet++ by Li et.al.
   Input:  utils: the utilility class
   """
   def __init__(self, utils):
