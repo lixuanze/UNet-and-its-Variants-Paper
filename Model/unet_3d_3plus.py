@@ -16,7 +16,7 @@ import cv2
 
 class UNet3Plus:
   """
-  Class for Deep Learning Hyperspectral Segmentation with the 2020 UNet 3+ by Huang et.al.
+  Class for Deep Learning Hyperspectral Segmentation with the one similar to the 2020 UNet 3+ by Huang et.al.
   Input:  utils: the utilility class
   """
   def __init__(self, utils):
