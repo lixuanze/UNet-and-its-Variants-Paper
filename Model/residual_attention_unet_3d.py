@@ -29,7 +29,7 @@ class ExpendAsLayer(Layer):
 
 class Residual_Attention_UNet:
   """
-  Class for Deep Learning Hyperspectral Segmentation with RAUNet: Residual Attention U-Net for
+  Class for Deep Learning Hyperspectral Segmentation Similar to RAUNet: Residual Attention U-Net for
 Semantic Segmentation of Cataract Surgical Instruments.
   Input:  utils: the utilility class
   """
