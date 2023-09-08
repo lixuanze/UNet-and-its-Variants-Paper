@@ -16,7 +16,7 @@ import cv2
 
 class Residual_UNet_plus_plus:
   """
-  Class for Deep Learning Hyperspectral Segmentation with ResUNet++: An Advanced Architecture for Medical Image Segmentation
+  Class for Deep Learning Hyperspectral Segmentation with ResUNet++: An Advanced Architecture for Medical Image Segmentation (Jha et. al 2019)
 
   Input:  utils: the utilility class
   """
