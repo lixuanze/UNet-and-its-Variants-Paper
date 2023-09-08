@@ -14,22 +14,9 @@ from sklearn.model_selection import train_test_split
 import numpy as np
 import cv2
 
-class ExpendAsLayer(Layer):
-    def __init__(self, rep, **kwargs):
-        super(ExpendAsLayer, self).__init__(**kwargs)
-        self.rep = rep
-
-    def call(self, inputs):
-        return K.repeat_elements(inputs, self.rep, axis=4)
-
-    def get_config(self):
-        config = super().get_config()
-        config.update({'rep': self.rep})
-        return config
-
-class Residual_Attention_UNet_plus_plus:
+class Residual_UNet_plus_plus:
   """
-  Class for Deep Learning Hyperspectral Segmentation with the 2022 Residual Attention UNet++ by Li et.al - Residual-Attention UNet++: A Nested Residual-Attention U-Net for Medical Image Segmentation.
+  Class for Deep Learning Hyperspectral Segmentation with the one similar to ResUNet++: An Advanced Architecture for Medical Image Segmentation (Jha et. al 2019)
 
   Input:  utils: the utilility class
   """
@@ -75,42 +62,6 @@ class Residual_Attention_UNet_plus_plus:
       out_layer = Add()([convolution_layer, shortcut]) # Residual Connections
       return out_layer
     
-  def attention_layers_building_blocks(self, units, x, g):
-      '''
-      This method returns the attention layer followed implementation of Oktay 2018.
-      '''
-      shape_x = K.int_shape(x)
-      shape_g = K.int_shape(g)
-      
-      # Getting the gating signal to the same number of filters as the inter_shape
-      phi_g = Conv3D(units, (1, 1, 1), padding='same', kernel_initializer='he_normal')(g)
-
-      # Getting the x signal to the same shape as the gating signal
-      theta_x = Conv3D(units, (1, 1, 1), strides=(shape_x[1] // shape_g[1], shape_x[2] // shape_g[2], shape_x[3] // shape_g[3]), padding='same', kernel_initializer='he_normal')(x)
-
-      # Element-wise addition of the gating and x signals
-      add_xg = Add()([phi_g, theta_x])
-      add_xg = Activation('relu')(add_xg)
-
-      # 1x1x1 convolution
-      psi = Conv3D(1, (1, 1, 1), strides=(shape_x[1] // shape_g[1], shape_x[2] // shape_g[2], shape_x[3] // shape_g[3]), padding='same', kernel_initializer='he_normal')(add_xg)
-      psi = Activation('sigmoid')(psi)
-      shape_sigmoid = K.int_shape(psi)
-
-      # Upsampling psi back to the original dimensions of x signal
-      upsample_sigmoid_xg = UpSampling3D(size=(shape_x[1] // shape_sigmoid[1], shape_x[2] // shape_sigmoid[2], shape_x[3] // shape_sigmoid[3]))(psi)
-
-      # Expanding the filter axis to the number of filters in the original x signal
-      upsample_sigmoid_xg = ExpendAsLayer(shape_x[4])(upsample_sigmoid_xg)
-
-      # Element-wise multiplication of attention coefficients back onto original x signal
-      attn_coefficients = Multiply()([upsample_sigmoid_xg, x])
-
-      # Final 1x1x1 convolution to consolidate attention signal to original x dimensions
-      output = Conv3D(shape_x[4], (1, 1, 1), strides=(1, 1, 1), padding='same', kernel_initializer='he_normal')(attn_coefficients)
-      out_layer = BatchNormalization()(output)
-      return out_layer
-
   def dice_loss(self, y_true, y_pred, smooth=1e-6):
     # Calculate intersection and the sum for the numerator and denominator of the Dice score
     intersection = K.sum(y_true * y_pred, axis=[0, 1, 2])
@@ -121,49 +72,39 @@ class Residual_Attention_UNet_plus_plus:
     dice_loss_multiclass = 1 - K.mean(dice_scores)
     return dice_loss_multiclass
       
-  def build_3d_attention_unet_plus_plus(self):
+  def build_3d_residual_unet_plus_plus(self):
     '''
-    This function is a tensorflow realization of the 3D-Attention-U-Net++ Model (2020). 
+    This function is a tensorflow realization of the 3D-Residual-U-Net++ Model (2019). 
     '''
     input_layer = Input((self.utils.resized_x_y, self.utils.resized_x_y, self.utils.num_components_to_keep, 1))
     
     # L1
     down_sampling_pooling_layer_1, encoding_space_layer_1 = self.encoding_layers_building_blocks(64, input_layer)
     down_sampling_pooling_layer_2, encoding_space_layer_2 = self.encoding_layers_building_blocks(128, down_sampling_pooling_layer_1)
-    up_output_attention_layer_1 = self.attention_layers_building_blocks(64, encoding_space_layer_1, encoding_space_layer_2)
-    up_output_1 = self.decoding_layers_building_blocks(64, encoding_space_layer_2, up_output_attention_layer_1)
+    up_output_1 = self.decoding_layers_building_blocks(64, encoding_space_layer_2, encoding_space_layer_1)
     
     # L2
     down_sampling_pooling_layer_3, encoding_space_layer_3 = self.encoding_layers_building_blocks(256, down_sampling_pooling_layer_2)
-    up_output_attention_layer_22 = self.attention_layers_building_blocks(128, encoding_space_layer_2, encoding_space_layer_3)
-    up_output_22 = self.decoding_layers_building_blocks(128, encoding_space_layer_3, up_output_attention_layer_22)
-    up_output_attention_layer_21 = self.attention_layers_building_blocks(64, up_output_1, up_output_22)
-    concat_layer_21 = concatenate([up_output_attention_layer_1, up_output_attention_layer_21], axis=4)
+    up_output_22 = self.decoding_layers_building_blocks(128, encoding_space_layer_3, encoding_space_layer_2)
+    concat_layer_21 = concatenate([encoding_space_layer_1, up_output_1], axis=4)
     up_output_2 = self.decoding_layers_building_blocks(64, up_output_22, concat_layer_21)
 
     # L3
     down_sampling_pooling_layer_4, encoding_space_layer_4 = self.encoding_layers_building_blocks(512, down_sampling_pooling_layer_3)
-    up_output_attention_layer_33 = self.attention_layers_building_blocks(256, encoding_space_layer_3, encoding_space_layer_4)
-    up_output_33 = self.decoding_layers_building_blocks(256, encoding_space_layer_4, up_output_attention_layer_33)
-    up_output_attention_layer_32 = self.attention_layers_building_blocks(128, up_output_22, up_output_33)
-    concat_layer_32 = concatenate([up_output_attention_layer_22, up_output_attention_layer_32], axis=4)
+    up_output_33 = self.decoding_layers_building_blocks(256, encoding_space_layer_4, encoding_space_layer_3)
+    concat_layer_32 = concatenate([encoding_space_layer_2, up_output_22], axis=4)
     up_output_32 = self.decoding_layers_building_blocks(128, up_output_33, concat_layer_32)
-    up_output_attention_layer_31 = self.attention_layers_building_blocks(64, up_output_2, up_output_32)
-    concat_layer_31 = concatenate([up_output_attention_layer_1, up_output_attention_layer_21, up_output_attention_layer_31], axis=4)
+    concat_layer_31 = concatenate([encoding_space_layer_1, up_output_1, up_output_2], axis=4)
     up_output_3 = self.decoding_layers_building_blocks(64, up_output_32, concat_layer_31)
     
     # L4
     encoding_space_output_layer = self.encoding_layers_building_blocks(1024, down_sampling_pooling_layer_4, downsampling=False)
-    up_output_attention_layer_44 = self.attention_layers_building_blocks(512, encoding_space_layer_4, encoding_space_output_layer)
-    up_output_44 = self.decoding_layers_building_blocks(512, encoding_space_output_layer, up_output_attention_layer_44)
-    up_output_attention_layer_43 = self.attention_layers_building_blocks(256, up_output_33, up_output_44)
-    concat_layer_43 = concatenate([up_output_attention_layer_33, up_output_attention_layer_43], axis=4)
+    up_output_44 = self.decoding_layers_building_blocks(512, encoding_space_output_layer, encoding_space_layer_4)
+    concat_layer_43 = concatenate([encoding_space_layer_3, up_output_33], axis=4)
     up_output_43 = self.decoding_layers_building_blocks(256, up_output_44, concat_layer_43)
-    up_output_attention_layer_42 = self.attention_layers_building_blocks(128, up_output_32, up_output_43)
-    concat_layer_42 = concatenate([up_output_attention_layer_22, up_output_attention_layer_32, up_output_attention_layer_42], axis=4)
+    concat_layer_42 = concatenate([encoding_space_layer_2, up_output_22, up_output_32], axis=4)
     up_output_42 = self.decoding_layers_building_blocks(128, up_output_43, concat_layer_42)
-    up_output_attention_layer_41 = self.attention_layers_building_blocks(64, up_output_3, up_output_42)
-    concat_layer_41 = concatenate([up_output_attention_layer_1, up_output_attention_layer_21, up_output_attention_layer_31, up_output_attention_layer_41], axis=4)
+    concat_layer_41 = concatenate([encoding_space_layer_1, up_output_1, up_output_2, up_output_3], axis=4)
     up_output_4 = self.decoding_layers_building_blocks(64, up_output_42, concat_layer_41)
     
     # classification blocks
@@ -195,7 +136,7 @@ class Residual_Attention_UNet_plus_plus:
 
   def train(self):
     '''
-    This method internally train the Attention U-Net++ defined above, with a given set of hyperparameters.
+    This method internally train the Residual U-Net++ defined above, with a given set of hyperparameters.
     '''
     if self.utils.pre_load_dataset == True:
       print("Loading Training & Validation Dataset...")
@@ -245,9 +186,9 @@ class Residual_Attention_UNet_plus_plus:
       print("Data Processing Completed")
     if self.utils.continue_training == True:
         # Custom objects, if any (you might need to define them depending on the custom loss, metrics, etc.)
-        custom_objects = {'dice_loss': self.dice_loss, 'ExpendAsLayer': ExpendAsLayer}
+        custom_objects = {'dice_loss': self.dice_loss}
         # Load the full model, including optimizer state
-        attention_unet = load_model('saved_models/residual_attention_unet_plus_plus_best_model.h5', custom_objects=custom_objects)
+        attention_unet = load_model('saved_models/residual_unet_plus_plus_best_model.h5', custom_objects=custom_objects)
         attention_unet.summary()
         if self.utils.override_trained_optimizer:
             learning_rate_scheduler = tf.keras.optimizers.schedules.ExponentialDecay(initial_learning_rate=1e-3, decay_steps=20000, decay_rate=0.99)
@@ -256,10 +197,10 @@ class Residual_Attention_UNet_plus_plus:
             else:
                 attention_unet.compile(optimizer = tf.keras.optimizers.Adam(learning_rate = learning_rate_scheduler), loss={'output_layer_4': self.dice_loss}, metrics={'output_layer_4': tf.keras.metrics.MeanIoU(num_classes = self.utils.n_features)})
     else:
-        attention_unet = self.build_3d_attention_unet_plus_plus()
+        attention_unet = self.build_3d_residual_unet_plus_plus()
         attention_unet.summary()
     print("Training Begins...")
-    attention_unet.fit(x = self.utils.X_train, y = self.utils.y_train, batch_size = self.utils.batch_size, epochs=self.utils.num_epochs, validation_data=(self.utils.X_validation, self.utils.y_validation), callbacks=[tf.keras.callbacks.ModelCheckpoint("saved_models/residual_attention_unet_plus_plus_best_model.h5", save_best_only=True), tf.keras.callbacks.EarlyStopping(patience=50, restore_best_weights=True)])
+    attention_unet.fit(x = self.utils.X_train, y = self.utils.y_train, batch_size = self.utils.batch_size, epochs=self.utils.num_epochs, validation_data=(self.utils.X_validation, self.utils.y_validation), callbacks=[tf.keras.callbacks.ModelCheckpoint("saved_models/residual_unet_plus_plus_best_model.h5", save_best_only=True), tf.keras.callbacks.EarlyStopping(patience=50, restore_best_weights=True)])
     print("Training Ended, Model Saved!")
     return None
 
@@ -267,8 +208,8 @@ class Residual_Attention_UNet_plus_plus:
     '''
     This method will take a pre-trained model and make corresponding predictions.
     '''
-    attention_unet = self.build_3d_attention_unet_plus_plus()
-    attention_unet.load_weights('saved_models/residual_attention_unet_plus_plus_best_model.h5')
+    attention_unet = self.build_3d_residual_unet_plus_plus()
+    attention_unet.load_weights('saved_models/residual_unet_plus_plus_best_model.h5')
     if new_data is not None:
       n_features = self.utils.n_features
       if self.utils.svd_denoising == True:
