@@ -16,7 +16,7 @@ import cv2
 
 class UNet:
   """
-  Class for Deep Learning Hyperspectral Segmentation with a simple 3D-UNet (the baseline model, by Ronneberger et al, 2015 & Çiçek et al, 2016)
+  Class for Deep Learning Hyperspectral Segmentation with a 3D-UNet (the baseline model, by Ronneberger et al, 2015 & Çiçek et al, 2016)
   Input:  utils: the utilility class
   """
   def __init__(self, utils):
