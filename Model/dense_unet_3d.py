@@ -1,3 +1,5 @@
+from re import I
+import os
 from utils import utils
 import tensorflow as tf
 from tensorflow import reduce_sum
@@ -19,6 +21,7 @@ class Dense_UNet:
   """
   def __init__(self, utils):
     self.utils = utils
+    self.data_path = os.path.join(os.getcwd(), '')
   
   def encoding_layers_building_blocks(self, units, in_layer, pooling_layer=True):
       '''
@@ -78,17 +81,14 @@ class Dense_UNet:
       return out_layer
   
   def dice_loss(self, y_true, y_pred, smooth=1e-6):
-    '''
-    The custom dice loss as defined in the paper.
-    '''
-    # Dice Loss
-    y_true_f = Flatten()(y_true)
-    y_pred_f = Flatten()(y_pred)
-    intersection = reduce_sum(y_true_f * y_pred_f)
-    dice = (2. * intersection + smooth) / (reduce_sum(y_true_f) + reduce_sum(y_pred_f) + smooth)
-    dice_loss = 1 - dice  # Corrected this line
-    
-    return dice_loss
+    # Calculate intersection and the sum for the numerator and denominator of the Dice score
+    intersection = K.sum(y_true * y_pred, axis=[0, 1, 2])
+    sum_true_pred = K.sum(y_true, axis=[0, 1, 2]) + K.sum(y_pred, axis=[0, 1, 2])
+
+    # Calculate the Dice score for each class
+    dice_scores = (2. * intersection + smooth) / (sum_true_pred + smooth)
+    dice_loss_multiclass = 1 - K.mean(dice_scores)
+    return dice_loss_multiclass
     
   def build_3d_dense_unet(self):
     '''
@@ -108,9 +108,9 @@ class Dense_UNet:
     up_sampling_output_layer_3 = self.decoding_layers_building_blocks(128, up_sampling_output_layer_2, down_sampling_convolution_layer_2)
     up_sampling_output_layer_4 = self.decoding_layers_building_blocks(64, up_sampling_output_layer_3, down_sampling_convolution_layer_1)
     # classification block
-    up_sampling_output_layer_4_shape = up_sampling_output_layer_4.shape
-    up_sampling_output_layer_4_2d_reshaped = Reshape((up_sampling_output_layer_4_shape[1], up_sampling_output_layer_4_shape[2], up_sampling_output_layer_4_shape[3] * up_sampling_output_layer_4_shape[4]))(up_sampling_output_layer_4)
-    output_layer = Conv2D(self.utils.n_features, (1, 1), activation='softmax', name='output_layer')(up_sampling_output_layer_4_2d_reshaped)
+    output_layer = Conv3D(1, (1, 1, 1))(up_sampling_output_layer_4)
+    output_layer = Reshape((self.utils.resized_x_y, self.utils.resized_x_y, self.utils.num_components_to_keep))(output_layer)
+    output_layer = Activation('softmax', name='output_layer')(output_layer)
 
     model = Model(inputs=[input_layer], outputs=[output_layer])
     learning_rate_scheduler = tf.keras.optimizers.schedules.ExponentialDecay(initial_learning_rate=1e-3, decay_steps=20000, decay_rate=0.99)
@@ -123,10 +123,10 @@ class Dense_UNet:
     '''
     if self.utils.pre_load_dataset == True:
       print("Loading Training & Validation Dataset...")
-      self.utils.X_train = np.load('X_train.npy').astype(np.float64)
-      self.utils.X_validation = np.load('X_validation.npy').astype(np.float64)
-      self.utils.y_train = np.load('y_train.npy').astype(np.float64)
-      self.utils.y_validation = np.load('y_validation.npy').astype(np.float64)
+      self.utils.X_train = np.load(os.path.join(self.data_path, 'Data/X_train.npy')).astype(np.float64)
+      self.utils.X_validation = np.load(os.path.join(self.data_path, 'Data/X_validation.npy')).astype(np.float64)
+      self.utils.y_train = np.load(os.path.join(self.data_path, 'Data/y_train.npy')).astype(np.float64)
+      self.utils.y_validation = np.load(os.path.join(self.data_path, 'Data/y_validation.npy')).astype(np.float64)
       print("Training and Validation Dataset Loaded")
     else:
       print("Data Loading...")
@@ -157,15 +157,15 @@ class Dense_UNet:
       print("Prepare Data for Training, Validation & Testing...")
       X_processed, y_processed = self.utils.prepare_dataset_for_training(X_normalized, y)
       X_train, X_, y_train, y_ = train_test_split(X_processed, y_processed, train_size = 1 - self.utils.test_ratio, test_size = self.utils.test_ratio, random_state=1234)
-      X_validation, X_test, y_validation, y_test = train_test_split(X_, y_, train_size = 1 - self.utils.test_ratio, test_size = self.utils.test_ratio, random_state=1234)
+      X_validation, X_test, y_validation, y_test = train_test_split(X_, y_, train_size = 1 - self.utils.test_ratio, test_size = self.utils.test_ratio, random_state=4321)
       self.utils.X_train, self.utils.X_validation, self.utils.X_test = X_train, X_validation, X_test
       self.utils.y_train, self.utils.y_validation, self.utils.y_test = y_train, y_validation, y_test
-      np.save('X_train.npy', self.utils.X_train)
-      np.save('X_validation.npy', self.utils.X_validation)
-      np.save('X_test.npy', self.utils.X_test)
-      np.save('y_train.npy', self.utils.y_train)
-      np.save('y_validation.npy', self.utils.y_validation)
-      np.save('y_test.npy', self.utils.y_test)
+      np.save(os.path.join(self.data_path, 'Data/X_train.npy'), self.utils.X_train)
+      np.save(os.path.join(self.data_path, 'Data/X_validation.npy'), self.utils.X_validation)
+      np.save(os.path.join(self.data_path, 'Data/X_test.npy'), self.utils.X_test)
+      np.save(os.path.join(self.data_path, 'Data/y_train.npy'), self.utils.y_train)
+      np.save(os.path.join(self.data_path, 'Data/y_validation.npy'), self.utils.y_validation)
+      np.save(os.path.join(self.data_path, 'Data/y_test.npy'), self.utils.y_test)
       print("Data Processing Completed")
     if self.utils.continue_training == True:
         # Custom objects, if any (you might need to define them depending on the custom loss, metrics, etc.)
@@ -180,7 +180,7 @@ class Dense_UNet:
         dense_unet = self.build_3d_dense_unet()
         dense_unet.summary()
     print("Training Begins...")
-    dense_unet.fit(x = self.utils.X_train, y = self.utils.y_train, batch_size = self.utils.batch_size, epochs=self.utils.num_epochs, validation_data=(self.utils.X_validation, self.utils.y_validation), callbacks=[tf.keras.callbacks.ModelCheckpoint("models/dense_unet_best_model.h5", save_best_only=True), tf.keras.callbacks.EarlyStopping(patience=200, restore_best_weights=True)])
+    dense_unet.fit(x = self.utils.X_train, y = self.utils.y_train, batch_size = self.utils.batch_size, epochs=self.utils.num_epochs, validation_data=(self.utils.X_validation, self.utils.y_validation), callbacks=[tf.keras.callbacks.ModelCheckpoint("models/dense_unet_best_model.h5", save_best_only=True), tf.keras.callbacks.EarlyStopping(patience=50, restore_best_weights=True)])
     print("Training Ended, Model Saved!")
     return None
 
@@ -228,8 +228,8 @@ class Dense_UNet:
     else:
       if self.utils.pre_load_dataset == True:
         print("Loading Testing Dataset...")
-        self.utils.X_test = np.load('X_test.npy').astype(np.float64)
-        self.utils.y_test = np.load('y_test.npy').astype(np.float64)
+        self.utils.X_test = np.load(os.path.join(self.data_path, 'Data/X_test.npy')).astype(np.float64)
+        self.utils.y_test = np.load(os.path.join(self.data_path, 'Data/y_test.npy')).astype(np.float64)
         print("Testing Dataset Loaded")
       else:
         print("Testing Begins...")
