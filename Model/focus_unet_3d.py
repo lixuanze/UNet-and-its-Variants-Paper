@@ -181,7 +181,8 @@ class Position_attention(tf.keras.layers.Layer):
 
 class Focus_UNet:
   """
-  Class for Deep Learning Hyperspectral Segmentation with an Attention UNet model by Oktay 2018.
+  Class for Deep Learning Hyperspectral Segmentation with an architecture similar to Focus U-Net: A novel dual attention-gated CNN for polyp segmentation during colonoscopy (2021).
+  
   Input:  utils: the utilility class
   """
   def __init__(self, utils):
@@ -221,18 +222,18 @@ class Focus_UNet:
       out_layer = Activation('relu')(convolution_layer)
       return out_layer
     
-  def attention_layers_building_blocks(self, units, x, g):
+  def focus_layers_building_blocks(self, units, x, g):
       '''
-      This method returns the attention layer followed implementation of Oktay 2018.
+      This method returns the focus layer in the 2021 paper, however, the paper has made a small mistake that upsamples twice the input, we corrected it here.
       '''
       shape_x = K.int_shape(x)
       shape_g = K.int_shape(g)
       
       # Getting the gating signal to the same number of filters as the inter_shape
-      phi_g = Conv3DTranspose(units, (1, 1, 1), strides=(shape_x[1] // shape_g[1], shape_x[2] // shape_g[2], shape_x[3] // shape_g[3]), padding='same', kernel_initializer='he_normal')(g)
+      phi_g = Conv3D(units, (1, 1, 1), padding='same', kernel_initializer='he_normal')(g)
 
       # Getting the x signal to the same shape as the gating signal
-      theta_x = Conv3D(units, (1, 1, 1), padding='same', kernel_initializer='he_normal')(x)
+      theta_x = Conv3D(units, (1, 1, 1), strides=(shape_x[1]//shape_g[1], shape_x[2]//shape_g[2], shape_x[3]//shape_g[3]), padding='same', kernel_initializer='he_normal')(x)
 
       # Element-wise addition of the gating and x signals
       add_xg = Add()([phi_g, theta_x])
@@ -249,7 +250,7 @@ class Focus_UNet:
       
       shape_weight = K.int_shape(weights)
       # Upsampling psi back to the original dimensions of x signal
-      upsample_sigmoid_xg = UpSampling3D(size=(shape_x[1] // shape_weight[1], shape_x[2] // shape_weight[2], shape_x[3] // shape_weight[3]))(weights)
+      upsample_sigmoid_xg = Conv3DTranspose(units, (shape_x[1] // shape_weight[1], shape_x[2] // shape_weight[2], shape_x[3] // shape_weight[3]), strides=(shape_x[1] // shape_g[1], shape_x[2] // shape_g[2], shape_x[3] // shape_g[3]), padding='same', kernel_initializer='he_normal')(weights)
 
       # Element-wise multiplication of attention coefficients back onto original x signal
       focus_coefficients = Multiply()([upsample_sigmoid_xg, x])
@@ -269,27 +270,27 @@ class Focus_UNet:
     dice_loss_multiclass = 1 - K.mean(dice_scores)
     return dice_loss_multiclass
       
-  def build_3d_attention_unet(self):
+  def build_3d_focus_unet(self):
     '''
-    This function is a tensorflow realization of a simple baseline 3D U-Net model (2015, 2016). 
+    This function is a tensorflow realization of the 3D Focus U-Net model (2021). 
     '''
     input_layer = Input((self.utils.resized_x_y, self.utils.resized_x_y, self.utils.num_components_to_keep, 1))
     # down sampling blocks
-    down_sampling_output_layer_1, down_sampling_convolution_layer_1 = self.encoding_layers_building_blocks(16, input_layer)
-    down_sampling_output_layer_2, down_sampling_convolution_layer_2 = self.encoding_layers_building_blocks(32, down_sampling_output_layer_1)
-    down_sampling_output_layer_3, down_sampling_convolution_layer_3 = self.encoding_layers_building_blocks(64, down_sampling_output_layer_2)
-    down_sampling_output_layer_4, down_sampling_convolution_layer_4 = self.encoding_layers_building_blocks(128, down_sampling_output_layer_3)
+    down_sampling_output_layer_1, down_sampling_convolution_layer_1 = self.encoding_layers_building_blocks(64, input_layer)
+    down_sampling_output_layer_2, down_sampling_convolution_layer_2 = self.encoding_layers_building_blocks(128, down_sampling_output_layer_1)
+    down_sampling_output_layer_3, down_sampling_convolution_layer_3 = self.encoding_layers_building_blocks(256, down_sampling_output_layer_2)
+    down_sampling_output_layer_4, down_sampling_convolution_layer_4 = self.encoding_layers_building_blocks(512, down_sampling_output_layer_3)
     # encoding blocks
-    encoding_space_output_layer = self.encoding_layers_building_blocks(256, down_sampling_output_layer_4, pooling_layer=False)
+    encoding_space_output_layer = self.encoding_layers_building_blocks(1024, down_sampling_output_layer_4, pooling_layer=False)
     # up sampling blocks
-    up_sampling_attention_layer_1 = self.attention_layers_building_blocks(16, down_sampling_convolution_layer_4, encoding_space_output_layer)
-    up_sampling_output_layer_1 = self.decoding_layers_building_blocks(16, encoding_space_output_layer, up_sampling_attention_layer_1)
-    up_sampling_attention_layer_2 = self.attention_layers_building_blocks(16, down_sampling_convolution_layer_3, encoding_space_output_layer)
-    up_sampling_output_layer_2 = self.decoding_layers_building_blocks(16, up_sampling_output_layer_1, up_sampling_attention_layer_2)
-    up_sampling_attention_layer_3 = self.attention_layers_building_blocks(16, down_sampling_convolution_layer_2, encoding_space_output_layer)
-    up_sampling_output_layer_3 = self.decoding_layers_building_blocks(16, up_sampling_output_layer_2, up_sampling_attention_layer_3)
-    up_sampling_attention_layer_4 = self.attention_layers_building_blocks(16, down_sampling_convolution_layer_1, encoding_space_output_layer)
-    up_sampling_output_layer_4 = self.decoding_layers_building_blocks(16, up_sampling_output_layer_3, up_sampling_attention_layer_4)
+    up_sampling_focus_layer_1 = self.focus_layers_building_blocks(512, down_sampling_convolution_layer_4, encoding_space_output_layer)
+    up_sampling_output_layer_1 = self.decoding_layers_building_blocks(512, encoding_space_output_layer, up_sampling_focus_layer_1)
+    up_sampling_focus_layer_2 = self.focus_layers_building_blocks(256, down_sampling_convolution_layer_3, encoding_space_output_layer)
+    up_sampling_output_layer_2 = self.decoding_layers_building_blocks(256, up_sampling_output_layer_1, up_sampling_focus_layer_2)
+    up_sampling_focus_layer_3 = self.focus_layers_building_blocks(128, down_sampling_convolution_layer_2, encoding_space_output_layer)
+    up_sampling_output_layer_3 = self.decoding_layers_building_blocks(128, up_sampling_output_layer_2, up_sampling_focus_layer_3)
+    up_sampling_focus_layer_4 = self.focus_layers_building_blocks(64, down_sampling_convolution_layer_1, encoding_space_output_layer)
+    up_sampling_output_layer_4 = self.decoding_layers_building_blocks(64, up_sampling_output_layer_3, up_sampling_focus_layer_4)
     # classification block
     output_layer = Conv3D(1, (1, 1, 1))(up_sampling_output_layer_4)
     output_layer = Reshape((self.utils.resized_x_y, self.utils.resized_x_y, self.utils.num_components_to_keep))(output_layer)
@@ -352,18 +353,18 @@ class Focus_UNet:
       print("Data Processing Completed")
     if self.utils.continue_training == True:
         # Custom objects, if any (you might need to define them depending on the custom loss, metrics, etc.)
-        custom_objects = {'dice_loss': self.dice_loss, 'ExpendAsLayer': ExpendAsLayer}
+        custom_objects = {'dice_loss': self.dice_loss, 'ExpendAsLayer': ExpendAsLayer, 'Position_attention': Position_attention, 'Channel_attention': Channel_attention}
         # Load the full model, including optimizer state
-        attention_unet = load_model('saved_models/attention_unet_best_model.h5', custom_objects=custom_objects)
-        attention_unet.summary()
+        focus_unet = load_model('saved_models/focus_unet_best_model.h5', custom_objects=custom_objects)
+        focus_unet.summary()
         if self.utils.override_trained_optimizer:
             learning_rate_scheduler = tf.keras.optimizers.schedules.ExponentialDecay(initial_learning_rate=1e-3, decay_steps=20000, decay_rate=0.99)
-            attention_unet.compile(optimizer = tf.keras.optimizers.Adam(learning_rate = learning_rate_scheduler), loss={'output_layer': self.dice_loss}, metrics=[tf.keras.metrics.MeanIoU(num_classes = self.utils.n_features)])
+            focus_unet.compile(optimizer = tf.keras.optimizers.Adam(learning_rate = learning_rate_scheduler), loss={'output_layer': self.dice_loss}, metrics=[tf.keras.metrics.MeanIoU(num_classes = self.utils.n_features)])
     else:
-        attention_unet = self.build_3d_attention_unet()
-        attention_unet.summary()
+        focus_unet = self.build_3d_focus_unet()
+        focus_unet.summary()
     print("Training Begins...")
-    attention_unet.fit(x = self.utils.X_train, y = self.utils.y_train, batch_size = self.utils.batch_size, epochs=self.utils.num_epochs, validation_data=(self.utils.X_validation, self.utils.y_validation), callbacks=[tf.keras.callbacks.ModelCheckpoint("saved_models/attention_unet_best_model.h5", save_best_only=True), tf.keras.callbacks.EarlyStopping(patience=50, restore_best_weights=True)])
+    focus_unet.fit(x = self.utils.X_train, y = self.utils.y_train, batch_size = self.utils.batch_size, epochs=self.utils.num_epochs, validation_data=(self.utils.X_validation, self.utils.y_validation), callbacks=[tf.keras.callbacks.ModelCheckpoint("saved_models/focus_unet_best_model.h5", save_best_only=True), tf.keras.callbacks.EarlyStopping(patience=50, restore_best_weights=True)])
     print("Training Ended, Model Saved!")
     return None
 
@@ -371,8 +372,8 @@ class Focus_UNet:
     '''
     This method will take a pre-trained model and make corresponding predictions.
     '''
-    attention_unet = self.build_3d_attention_unet()
-    attention_unet.load_weights('saved_models/attention_unet_best_model.h5')
+    focus_unet = self.build_3d_focus_unet()
+    focus_unet.load_weights('saved_models/focus_unet_best_model.h5')
     if new_data is not None:
       n_features = self.utils.n_features
       if self.utils.svd_denoising == True:
@@ -400,7 +401,7 @@ class Focus_UNet:
       X_, pca = self.utils.run_PCA(image_cube = X_normalized, num_principal_components = self.utils.num_components_to_keep)
       X_ = cv2.resize(X_, (self.utils.resized_x_y, self.utils.resized_x_y), interpolation = cv2.INTER_LANCZOS4)
       X_test = X_.reshape(-1, self.utils.resized_x_y, self.utils.resized_x_y, self.utils.num_components_to_keep, 1)
-      prediction_result = attention_unet.predict(X_test)
+      prediction_result = focus_unet.predict(X_test)
       prediction_encoded = np.zeros((self.utils.resized_x_y, self.utils.resized_x_y))
       for i in range(self.utils.resized_x_y):
         for j in range(self.utils.resized_x_y):
@@ -420,7 +421,7 @@ class Focus_UNet:
       prediction_result = np.zeros(shape=(total_test_length, self.utils.resized_x_y, self.utils.resized_x_y, self.utils.n_features))
       for i in range(0, total_test_length, self.utils.batch_size):
         print("Testing sample from:", i, "to:", i+self.utils.batch_size)
-        prediction_result[i:i+self.utils.batch_size] = attention_unet.predict(self.utils.X_test[i:i+self.utils.batch_size])
+        prediction_result[i:i+self.utils.batch_size] = focus_unet.predict(self.utils.X_test[i:i+self.utils.batch_size])
 
       prediction_ = np.zeros(shape=(total_test_length, self.utils.resized_x_y, self.utils.resized_x_y))
       for k in range(total_test_length):
