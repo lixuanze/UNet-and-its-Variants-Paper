@@ -6,7 +6,7 @@ from tensorflow import reduce_sum
 import tensorflow_probability as tfp
 from skimage.transform import resize
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Input, Conv3D, Reshape, concatenate, Conv2D, MaxPooling3D, UpSampling3D, BatchNormalization, Add, Activation, Dropout, Flatten, Conv3DTranspose, Layer, Dense, GlobalAveragePooling3D, GlobalMaxPooling3D, Multiply, Lambda
+from tensorflow.keras.layers import Input, Conv3D, Reshape, concatenate, Conv2D, MaxPooling3D, UpSampling3D, BatchNormalization, Add, Activation, Dropout, Flatten, Conv3DTranspose, Layer, Dense, GlobalAveragePooling3D, GlobalMaxPooling3D, Multiply, Lambda, AveragePooling3D
 from tensorflow.keras.callbacks import ModelCheckpoint
 from tensorflow.keras import backend as K
 from tensorflow.keras.models import load_model
@@ -257,7 +257,7 @@ class Position_attention(tf.keras.layers.Layer):
 
         return outputs
         
-class R2A2_Focus_UNet_plus_plus:
+class R2A2_UNet_plus_plus:
   """
   Class for Deep Learning Hyperspectral Segmentation with the newly proposed 3D-R2-Atrous-CBAM-Focus-UNet++
   Input:  utils: the utilility class
@@ -279,7 +279,6 @@ class R2A2_Focus_UNet_plus_plus:
       '''
       This method returns the encoding layers building blocks (i.e, downsampling layers)
       '''
-      d1, d2, d3 = 1, 3, 5
       input_shortcut = Conv3D(units, (1, 1, 1), padding='same', kernel_initializer='he_normal')(in_layer)
       convolution_layer_main = input_shortcut
       
@@ -287,23 +286,19 @@ class R2A2_Focus_UNet_plus_plus:
       for i in range(self.utils.r2unet_stacks):
         internal_residual_layer = BatchNormalization()(convolution_layer_main)
         internal_residual_layer = Activation('elu')(internal_residual_layer)
-        internal_dilated_layer_1 = Conv3D(units//2, (3, 3, 3), dilation_rate=(d1, d1, d1), padding='same', kernel_initializer='he_normal')(internal_residual_layer)
-        internal_dilated_layer_2 = Conv3D(units//4, (3, 3, 3), dilation_rate=(d2, d2, d2), padding='same', kernel_initializer='he_normal')(internal_residual_layer)
-        internal_dilated_layer_3 = Conv3D(units//4, (3, 3, 3), dilation_rate=(d3, d3, d3), padding='same', kernel_initializer='he_normal')(internal_residual_layer)
-        internal_residual_layer = concatenate([internal_dilated_layer_1, internal_dilated_layer_2, internal_dilated_layer_3], axis=4)
+        internal_residual_layer = Conv3D(units, (3, 3, 3), padding='same', kernel_initializer='he_normal')(internal_residual_layer)
         for j in range(self.utils.r2unet_recur_num):
             add_layer = Add()([internal_residual_layer, convolution_layer_main])
             internal_residual_layer = BatchNormalization()(add_layer)
             internal_residual_layer = Activation('elu')(internal_residual_layer)
-            internal_dilated_layer_1 = Conv3D(units//2, (3, 3, 3), dilation_rate=(d1, d1, d1), padding='same', kernel_initializer='he_normal')(internal_residual_layer)
-            internal_dilated_layer_2 = Conv3D(units//4, (3, 3, 3), dilation_rate=(d2, d2, d2), padding='same', kernel_initializer='he_normal')(internal_residual_layer)
-            internal_dilated_layer_3 = Conv3D(units//4, (3, 3, 3), dilation_rate=(d3, d3, d3), padding='same', kernel_initializer='he_normal')(internal_residual_layer)
-            internal_residual_layer = concatenate([internal_dilated_layer_1, internal_dilated_layer_2, internal_dilated_layer_3], axis=4)
+            internal_residual_layer = Conv3D(units, (3, 3, 3), padding='same', kernel_initializer='he_normal')(internal_residual_layer)
         convolution_layer_main = internal_residual_layer
       out_layer_before_pooling = Add()([convolution_layer_main, input_shortcut])
       out_layer_before_pooling = self.cbam_block(out_layer_before_pooling)
       if downsampling == True:
-          out_layer = MaxPooling3D(pool_size=(2, 2, 2), padding='same')(out_layer_before_pooling)
+          out_layer_1 = MaxPooling3D(pool_size=(2, 2, 2), padding='same')(out_layer_before_pooling)
+          out_layer_2 = AveragePooling3D(pool_size=(2, 2, 2), padding='same')(out_layer_before_pooling)
+          out_layer = concatenate([out_layer_1, out_layer_2], axis=4)
           return out_layer, out_layer_before_pooling
       else:
           return out_layer_before_pooling
@@ -312,7 +307,6 @@ class R2A2_Focus_UNet_plus_plus:
       '''
       This method returns the decoding layers building blocks (i.e, upsampling layers)
       '''
-      d1, d2, d3 = 1, 3, 5
       if concat_layer.shape[3] == 1:
           upsampling_layer = UpSampling3D(size=(2, 2, 1))(in_layer)
       else:
@@ -326,18 +320,12 @@ class R2A2_Focus_UNet_plus_plus:
       for i in range(self.utils.r2unet_stacks):
         internal_residual_layer = BatchNormalization()(convolution_layer_main)
         internal_residual_layer = Activation('elu')(internal_residual_layer)
-        internal_dilated_layer_1 = Conv3D(units//2, (3, 3, 3), dilation_rate=(d1, d1, d1), padding='same', kernel_initializer='he_normal')(internal_residual_layer)
-        internal_dilated_layer_2 = Conv3D(units//4, (3, 3, 3), dilation_rate=(d2, d2, d2), padding='same', kernel_initializer='he_normal')(internal_residual_layer)
-        internal_dilated_layer_3 = Conv3D(units//4, (3, 3, 3), dilation_rate=(d3, d3, d3), padding='same', kernel_initializer='he_normal')(internal_residual_layer)
-        internal_residual_layer = concatenate([internal_dilated_layer_1, internal_dilated_layer_2, internal_dilated_layer_3], axis=4)
+        internal_residual_layer = Conv3D(units, (3, 3, 3), padding='same', kernel_initializer='he_normal')(internal_residual_layer)
         for j in range(self.utils.r2unet_recur_num):
             add_layer = Add()([internal_residual_layer, convolution_layer_main])
             internal_residual_layer = BatchNormalization()(add_layer)
             internal_residual_layer = Activation('elu')(internal_residual_layer)
-            internal_dilated_layer_1 = Conv3D(units//2, (3, 3, 3), dilation_rate=(d1, d1, d1), padding='same', kernel_initializer='he_normal')(internal_residual_layer)
-            internal_dilated_layer_2 = Conv3D(units//4, (3, 3, 3), dilation_rate=(d2, d2, d2), padding='same', kernel_initializer='he_normal')(internal_residual_layer)
-            internal_dilated_layer_3 = Conv3D(units//4, (3, 3, 3), dilation_rate=(d3, d3, d3), padding='same', kernel_initializer='he_normal')(internal_residual_layer)
-            internal_residual_layer = concatenate([internal_dilated_layer_1, internal_dilated_layer_2, internal_dilated_layer_3], axis=4)
+            internal_residual_layer = Conv3D(units, (3, 3, 3), padding='same', kernel_initializer='he_normal')(internal_residual_layer)
         convolution_layer_main = internal_residual_layer
       out_layer = Add()([convolution_layer_main, input_shortcut])
       out_layer = self.cbam_block(out_layer)
@@ -345,16 +333,16 @@ class R2A2_Focus_UNet_plus_plus:
   
   def focus_gate_building_blocks(self, units, x, g):
       '''
-      This method returns the Focus-gate followed implementation of Focus-UNet 2021.
+      This method returns the focus layer in the 2021 paper, however, the paper has made a small mistake that upsamples twice the input, we corrected it here.
       '''
       shape_x = K.int_shape(x)
       shape_g = K.int_shape(g)
       
       # Getting the gating signal to the same number of filters as the inter_shape
-      phi_g = Conv3DTranspose(units, (1, 1, 1), strides=(shape_x[1] // shape_g[1], shape_x[2] // shape_g[2], shape_x[3] // shape_g[3]), padding='same', kernel_initializer='he_normal')(g)
+      phi_g = Conv3D(units, (1, 1, 1), padding='same', kernel_initializer='he_normal')(g)
 
       # Getting the x signal to the same shape as the gating signal
-      theta_x = Conv3D(units, (1, 1, 1), padding='same', kernel_initializer='he_normal')(x)
+      theta_x = Conv3D(units, (1, 1, 1), strides=(shape_x[1]//shape_g[1], shape_x[2]//shape_g[2], shape_x[3]//shape_g[3]), padding='same', kernel_initializer='he_normal')(x)
 
       # Element-wise addition of the gating and x signals
       add_xg = Add()([phi_g, theta_x])
@@ -371,7 +359,7 @@ class R2A2_Focus_UNet_plus_plus:
       
       shape_weight = K.int_shape(weights)
       # Upsampling psi back to the original dimensions of x signal
-      upsample_sigmoid_xg = UpSampling3D(size=(shape_x[1] // shape_weight[1], shape_x[2] // shape_weight[2], shape_x[3] // shape_weight[3]))(weights)
+      upsample_sigmoid_xg = Conv3DTranspose(units, (shape_x[1] // shape_weight[1], shape_x[2] // shape_weight[2], shape_x[3] // shape_weight[3]), strides=(shape_x[1] // shape_g[1], shape_x[2] // shape_g[2], shape_x[3] // shape_g[3]), padding='same', kernel_initializer='he_normal')(weights)
 
       # Element-wise multiplication of attention coefficients back onto original x signal
       focus_coefficients = Multiply()([upsample_sigmoid_xg, x])
@@ -393,7 +381,7 @@ class R2A2_Focus_UNet_plus_plus:
       
   def build_3d_r2unet_plus_plus(self):
     '''
-    This function is a tensorflow realization of the 3D-R2A2-Focus-U-Net++ Model (2018). 
+    This function is a tensorflow realization of the 3D-R2A2-Focus-U-Net++ Model (ours). 
     '''
     input_layer = Input((self.utils.resized_x_y, self.utils.resized_x_y, self.utils.num_components_to_keep, 1))
     
